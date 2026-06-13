@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>良善一方田 - 智慧果園監控儀表板</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        @keyframes wave {
+            0% { transform: translate(-50%, 0) rotate(0deg); }
+            100% { transform: translate(-50%, -15%) rotate(360deg); }
+        }
+       .water-wave { animation: wave 8s infinite linear; }
+       .disease-glow {
+            box-shadow: 0 0 15px rgba(168, 85, 247, 0.6);
+            border-color: rgb(168, 85, 247);
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-gray-100 font-sans min-h-screen">
+
+    <div id="alert-banner" class="w-full py-4 px-6 text-center font-bold text-lg transition-all duration-500 bg-emerald-600 text-white">
+        系統正常：穩定連線與微氣候監測中
+    </div>
+
+    <div class="max-w-6xl mx-auto px-4 py-8">
+        
+        <div class="flex flex-col md:flex-row justify-between items-center mb-8 border-b border-gray-800 pb-6">
+            <div>
+                <h1 class="text-3xl font-extrabold text-white tracking-wide">良善一方田</h1>
+                <p class="text-gray-400 mt-1">智慧芭樂果園環境監控與自動防禦滴灌系統 (即時歷史整合戰情室)</p>
+            </div>
+            <div class="mt-4 md:mt-0 flex items-center space-x-3 bg-gray-800 px-4 py-2 rounded-lg">
+                <span class="text-sm text-gray-400">當前控制模式:</span>
+                <span id="control-mode-badge" class="px-3 py-1 text-xs font-bold rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/30">
+                    載入中...
+                </span>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+            
+            <div id="climate-card" class="bg-gray-800 p-6 rounded-2xl border border-gray-700">
+                <h2 class="text-gray-400 text-sm font-semibold uppercase tracking-wider mb-4 flex items-center">
+                    <svg class="w-5 h-5 mr-2 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z"></path></svg>
+                    果園微氣候監測 (DHT22)
+                </h2>
+                <div class="space-y-6">
+                    <div class="flex justify-between items-center">
+                        <span class="text-gray-300">大氣溫度</span>
+                        <div class="text-right"><span id="temp-value" class="text-3xl font-bold text-white">--</span><span class="text-gray-400 text-lg ml-1">°C</span></div>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span class="text-gray-300">大氣相對濕度</span>
+                        <div class="text-right"><span id="humi-value" class="text-3xl font-bold text-white">--</span><span class="text-gray-400 text-lg ml-1">%</span></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-gray-800 p-6 rounded-2xl border border-gray-700 flex flex-col items-center">
+                <h2 class="text-gray-400 text-sm font-semibold uppercase tracking-wider mb-4 self-start flex items-center">
+                    <svg class="w-5 h-5 mr-2 text-sky-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"></path></svg>
+                    土壤含水狀態
+                </h2>
+                <div class="relative w-36 h-36 rounded-full border-4 border-gray-600 bg-gray-900 overflow-hidden mb-2">
+                    <div id="water-fill" class="absolute left-1/2 bottom-0 w-[200%] h-[0%] bg-sky-500 rounded-[38%] transform -translate-x-1/2 water-wave transition-all duration-1000"></div>
+                    <div class="absolute inset-0 flex flex-col justify-center items-center z-10">
+                        <span id="soil-value" class="text-3xl font-black text-white">--</span>
+                        <span class="text-xs text-sky-200 mt-1">土壤水分</span>
+                    </div>
+                </div>
+                <span id="soil-status-text" class="text-sm font-bold text-gray-400">連線中...</span>
+            </div>
+
+            <div class="bg-gray-800 p-6 rounded-2xl border border-gray-700 flex flex-col">
+                <h2 class="text-gray-400 text-sm font-semibold uppercase tracking-wider mb-4 flex items-center">
+                    <svg class="w-5 h-5 mr-2 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"></path></svg>
+                    地下抽水井水位計 (HC-SR04)
+                </h2>
+                <div class="flex-grow flex flex-col justify-center">
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="text-sm text-gray-300">井面探測距離</span>
+                        <span id="well-raw-value" class="text-sm font-semibold text-white">-- cm</span>
+                    </div>
+                    <div class="w-full bg-gray-700 rounded-full h-5 overflow-hidden mb-4">
+                        <div id="well-bar" class="bg-emerald-500 h-5 rounded-full transition-all duration-1000" style="width: 0%"></div>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span class="text-sm text-gray-400">剩餘蓄水容量</span>
+                        <span id="well-percent-value" class="text-lg font-bold text-emerald-400">--%</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-gray-800 p-6 rounded-2xl border border-gray-700 mb-8">
+            <h2 class="text-gray-400 text-sm font-semibold uppercase tracking-wider mb-4 flex items-center">
+                <svg class="w-5 h-5 mr-2 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 12l3-3 3 3 4-4M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"></path></svg>
+                環境數據歷史動態曲線 (最近 20 筆)
+            </h2>
+            <div class="relative w-full h-64 md:h-80">
+                <canvas id="historyChart"></canvas>
+            </div>
+        </div>
+
+        <div class="bg-gray-800 p-4 rounded-xl flex flex-col sm:flex-row justify-between items-center text-sm text-gray-400 border border-gray-800">
+            <div class="flex items-center mb-2 sm:mb-0">
+                <span class="inline-block w-3 h-3 rounded-full bg-emerald-500 mr-2 animate-pulse" id="live-indicator"></span>
+                <span>WebSocket 資料流與 Firebase 雲端雙向即時同步中</span>
+            </div>
+            <div>最後更新時間：<span id="timestamp-value" class="text-white font-mono">--</span></div>
+        </div>
+
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.0.0/firebase-app.js";
+        import { getDatabase, ref, onValue, query, limitToLast } from "https://www.gstatic.com/firebasejs/10.0.0/firebase-database.js";
+
+        // ==========================================
+        // !!! 請在下方替換為您個人的 Firebase Web 設定檔資訊 !!!
+        // ==========================================
+        const firebaseConfig = {
+            apiKey: "AIzaSyD_ExampleKey_XXXXXX",
+            authDomain: "your-guava-farm.firebaseapp.com",
+            databaseURL: "https://your-guava-farm-default-rtdb.firebaseio.com",
+            projectId: "your-guava-farm",
+            storageBucket: "your-guava-farm.appspot.com",
+            messagingSenderId: "1234567890",
+            appId: "1:1234567890:web:abcdef123456"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getDatabase(app);
+
+        // --- Chart.js 歷史圖表初始化 ---
+        const ctx = document.getElementById('historyChart').getContext('2d');
+        const historyChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: [], // 時間標籤
+                datasets: [
+                    { label: '溫度 (°C)', data: [], borderColor: '#f87171', backgroundColor: 'rgba(248, 113, 113, 0.1)', tension: 0.3, yAxisID: 'y' },
+                    { label: '濕度 (%)', data: [], borderColor: '#60a5fa', backgroundColor: 'rgba(96, 165, 250, 0.1)', tension: 0.3, yAxisID: 'y' },
+                    { label: '土壤水分 (%)', data: [], borderColor: '#34d399', backgroundColor: 'rgba(52, 211, 153, 0.1)', tension: 0.3, yAxisID: 'y' }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    x: { grid: { color: '#374151' }, ticks: { color: '#9ca3af' } },
+                    y: { grid: { color: '#374151' }, ticks: { color: '#9ca3af' }, min: 0, max: 100 }
+                },
+                plugins: { legend: { labels: { color: '#f3f4f6' } } }
+            }
+        });
+
+        // 1. 監聽【即時數據】
+        const currentRef = ref(db, 'orchard_data/current');
+        onValue(currentRef, (snapshot) => {
+            if (snapshot.exists()) {
+                const data = snapshot.val();
+                
+                // 更新大氣數據
+                document.getElementById('temp-value').innerText = data.temperature.toFixed(1);
+                document.getElementById('humi-value').innerText = data.humidity.toFixed(1);
+
+                // 更新水球狀態
+                const soilVal = data.soil_moisture;
+                document.getElementById('soil-value').innerText = `${soilVal.toFixed(1)}%`;
+                const waterFill = document.getElementById('water-fill');
+                const soilStatusText = document.getElementById('soil-status-text');
+                
+                waterFill.style.height = `${soilVal}%`;
+                if (soilVal < 30.0) {
+                    waterFill.className = "absolute left-1/2 bottom-0 w-[200%] bg-amber-600 rounded-[38%] transform -translate-x-1/2 water-wave transition-all duration-1000";
+                    soilStatusText.innerText = "極乾旱 (系統補水中)";
+                    soilStatusText.className = "text-sm font-bold text-amber-500";
+                } else {
+                    waterFill.className = "absolute left-1/2 bottom-0 w-[200%] bg-sky-500 rounded-[38%] transform -translate-x-1/2 water-wave transition-all duration-1000";
+                    soilStatusText.innerText = "水分黃金帶 (預防性防裂果)";
+                    soilStatusText.className = "text-sm font-bold text-emerald-400";
+                }
+
+                // 更新超音波水井狀態
+                const wellDistance = data.well_depth || 0;
+                document.getElementById('well-raw-value').innerText = `${wellDistance.toFixed(1)} cm`;
+                const wellPercent = data.water_capacity;
+                document.getElementById('well-percent-value').innerText = `${Math.round(wellPercent)}%`;
+                
+                const wellBar = document.getElementById('well-bar');
+                wellBar.style.width = `${wellPercent}%`;
+                if (wellPercent < 20.0) {
+                    wellBar.className = "bg-red-500 h-5 rounded-full transition-all duration-1000 animate-pulse";
+                } else {
+                    wellBar.className = "bg-emerald-500 h-5 rounded-full transition-all duration-1000";
+                }
+
+                // 狀態機控制與 Banner 顯示
+                const state = data.system_state;
+                const banner = document.getElementById('alert-banner');
+                const climateCard = document.getElementById('climate-card');
+                const badge = document.getElementById('control-mode-badge');
+
+                climateCard.classList.remove('disease-glow');
+
+                if (state === "EMERGENCY_LOCK") {
+                    banner.innerText = "🚨 警告：環境異常或水井枯竭！硬體安全機制防乾燒閉鎖中 🚨";
+                    banner.className = "w-full py-4 px-6 text-center font-bold text-lg transition-all duration-500 bg-red-600 text-white animate-pulse";
+                    badge.innerText = `緊急鎖定 (${data.mode})`;
+                    badge.className = "px-3 py-1 text-xs font-bold rounded-full bg-red-500/20 text-red-400 border border-red-500/30";
+                } else if (state === "DISEASE_ALERT") {
+                    banner.innerText = "⚠ 預警：高溫高濕已達黑星病與炭疽病臨界！請注意精準防治 ⚠";
+                    banner.className = "w-full py-4 px-6 text-center font-bold text-lg transition-all duration-500 bg-purple-700 text-white";
+                    badge.innerText = `病害預警 (${data.mode})`;
+                    badge.className = "px-3 py-1 text-xs font-bold rounded-full bg-purple-500/20 text-purple-400 border border-purple-500/30";
+                    climateCard.classList.add('disease-glow');
+                } else if (state === "AUTO_DRIP") {
+                    banner.innerText = "🚰 狀態：系統開啟自動滴灌中，穩定水勢避免果實劣化 🚰";
+                    banner.className = "w-full py-4 px-6 text-center font-bold text-lg transition-all duration-500 bg-sky-600 text-white";
+                    badge.innerText = `自動灌溉中 (${data.mode})`;
+                    badge.className = "px-3 py-1 text-xs font-bold rounded-full bg-sky-500/20 text-sky-400 border border-sky-500/30";
+                } else {
+                    banner.innerText = "✓ 智慧待機中：目前芭樂果園微氣候與水文狀態良好 ✓";
+                    banner.className = "w-full py-4 px-6 text-center font-bold text-lg transition-all duration-500 bg-emerald-600 text-white";
+                    badge.innerText = `監測待機 (${data.mode})`;
+                    badge.className = "px-3 py-1 text-xs font-bold rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30";
+                }
+
+                const dateObj = new Date(data.createdAt);
+                document.getElementById('timestamp-value').innerText = dateObj.toLocaleString('zh-TW');
+            }
+        });
+
+        // 2. 監聽並加載【歷史數據】用於繪製 Chart 圖表
+        const historyRef = query(ref(db, 'orchard_data/history'), limitToLast(20));
+        onValue(historyRef, (snapshot) => {
+            if (snapshot.exists()) {
+                const labels = [];
+                const tempDataset = [];
+                const humiDataset = [];
+                const soilDataset = [];
+
+                snapshot.forEach((childSnapshot) => {
+                    const val = childSnapshot.val();
+                    const timeLabel = new Date(val.createdAt).toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                    
+                    labels.push(timeLabel);
+                    tempDataset.push(val.temperature);
+                    humiDataset.push(val.humidity);
+                    soilDataset.push(val.soil_moisture);
+                });
+
+                // 更新圖表數據
+                historyChart.data.labels = labels;
+                historyChart.data.datasets[0].data = tempDataset;
+                historyChart.data.datasets[1].data = humiDataset;
+                historyChart.data.datasets[2].data = soilDataset;
+                historyChart.update(); // 刷新圖表渲染
+            }
+        });
+    </script>
+</body>
+</html>
