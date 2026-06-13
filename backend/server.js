@@ -7,18 +7,18 @@ app.use(cors());
 app.use(express.json());
 
 // =======================================================
-// !!! 重要：請替換成你的 Firebase 服務帳戶憑證 (Service Account) !!!
+// 🔐 安全加密防護：從 Render 的環境變數中安全讀取憑證
 // =======================================================
 const serviceAccount = {
   type: "service_account",
-  project_id: "your-guava-farm",
-  privateKey: "-----BEGIN PRIVATE KEY-----\nYOUR_PRIVATE_KEY_HERE\n-----END PRIVATE KEY-----\n",
-  clientEmail: "firebase-adminsdk-xxxxx@your-guava-farm.iam.gserviceaccount.com",
+  project_id: process.env.FIREBASE_PROJECT_ID,
+  privateKey: process.env.FIREBASE_PRIVATE_KEY ? process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n') : undefined,
+  clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
 };
 
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount),
-  databaseURL: "https://your-guava-farm-default-rtdb.firebaseio.com" // 替換為你的 RTDB URL
+  databaseURL: process.env.FIREBASE_DATABASE_URL // 從環境變數讀取資料庫網址
 });
 
 const db = admin.database();
@@ -27,40 +27,33 @@ const db = admin.database();
 app.post('/api/data', async (req, res) => {
   try {
     const telemetry = req.body;
-    
-    // 加上後端伺服器的精準時間戳
     const timestamp = Date.now();
     const dataWithTime = {
       ...telemetry,
       createdAt: timestamp
     };
 
-    // 1. 更新最新即時狀態 (給儀表板即時刷新)
     await db.ref('orchard_data/current').set(dataWithTime);
-
-    // 2. 推播至歷史資料庫 (給前端繪製歷史曲線圖)
     await db.ref('orchard_data/history').push(dataWithTime);
 
-    // 3. 限制歷史紀錄總數，避免免費額度爆滿 (只保留最新的 50 筆)
+    // 限制歷史紀錄總數不超過 50 筆，節省 Firebase 免費額度
     const historyRef = db.ref('orchard_data/history');
     const snapshot = await historyRef.once('value');
     if (snapshot.exists() && Object.keys(snapshot.val()).length > 50) {
       const keys = Object.keys(snapshot.val());
-      // 刪除最舊的一筆
       await historyRef.child(keys[0]).remove();
     }
 
-    console.log("✅ 資料已成功同步至 Firebase:", dataWithTime);
-    res.status(200).json({ status: "success", message: "Data synced to Firebase" });
+    console.log("✅ 資料已成功同步至 Firebase");
+    res.status(200).json({ status: "success" });
   } catch (error) {
     console.error("❌ 後端處理失敗:", error);
     res.status(500).json({ status: "error", message: error.message });
   }
 });
 
-// 健康檢查節點
 app.get('/', (req, res) => {
-  res.send('Guava Farm IoT Backend is running.');
+  res.send('Guava Farm IoT Backend is running securely.');
 });
 
 const PORT = process.env.PORT || 3000;
